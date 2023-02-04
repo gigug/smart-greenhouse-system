@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pickle as pkl
 
+np.random.seed(0)
 
 def save_timesteps_temperatures(t_start, t_end):
     """
@@ -28,32 +29,6 @@ def load_timesteps_temperatures():
         temperatures = pkl.load(f)
 
     return timesteps, temperatures
-
-
-def plot_quantity(timesteps, quantity, y_label, moisture_min, moisture_max, shade, active):
-    """
-    Function to plot chosen quantity.
-    """
-    fig, ax = plt.subplots()
-
-    x_ticks = np.arange(0, max(timesteps) + 1, 60 * 24)
-    x_labels = [str(i // (60 * 24) + 1) for i in x_ticks]
-    ax.set_xticks(x_ticks)
-    ax.set_xticklabels(x_labels)
-
-    ax.set_ylabel(y_label)
-    ax.set_xlabel("Days")
-
-    plt.plot(timesteps, quantity)
-
-    if y_label == "VWC":
-        plt.axhline(y=moisture_min, color='red', linestyle='--')
-        plt.axhline(y=moisture_max, color='red', linestyle='--')
-
-    # colors = np.array(['red' if not act else 'green' for act in active])
-    # ax.bar(timesteps, [100]*len(timesteps), color=colors, alpha=0.5)
-    # plt.savefig('test.png', dpi=100)
-    plt.show()
 
 
 def simulate_temperature(timesteps):
@@ -149,6 +124,7 @@ class SmartIrrigationSystem:
         self.area = area
         self.volume_soil = volume_soil
 
+        self.temperatures = []
         self.volume_water = []
         self.moistures = []
         self.shade = []
@@ -158,29 +134,67 @@ class SmartIrrigationSystem:
         """
         Function that turns on the Smart Irrigation System.
         """
-
+        self.temperatures = [temperature(0)]
         self.volume_water = [self.initial_volume_water]
         self.moistures = [self.moisture_min]
-        self.shade = [True if temperatures[0] > self.temperature_shade else False]
-        self.active = [False if shade[0] else True]
+        self.shade = [True if self.temperatures[0] > self.temperature_shade else False]
+        self.active = [False if self.shade[0] else True]
 
         for t in timesteps[1:]:
+            temperature_t = temperature(t)
             # check if shading system needs to be activated
-            shade_t = True if temperatures[t] > self.temperature_shade else False
+            shade_t = True if temperature_t > self.temperature_shade else False
             # check if sprinkler can be activated
-            active_t = False if shade_t or moistures[t - 1] > self.temperature_shade else True
+            active_t = True if not shade_t and self.moistures[t-1] <= self.temperature_shade else False
 
-            temperature_t = temperatures[t] if not shade_t else temperatures[t] - 10
+            if shade_t:
+                temperature_t -= 10
+
             et_t = evapotranspiration(temperature_t)
-            volume_water_t = calculate_volume_water(volume_water[t - 1], active_t, et_t, flux_minute, area)
-            moisture_t = moisture(volume_water_t, volume_soil)
+            volume_water_t = calculate_volume_water(self.volume_water[t-1], active_t, et_t, self.flux_minute, self.area)
+            moisture_t = moisture(volume_water_t, self.volume_soil)
 
-            volume_water.append(volume_water_t)
-            moistures.append(moisture_t)
-            shade.append(shade_t)
-            active.append(active_t)
+            self.temperatures.append(temperature_t)
+            self.volume_water.append(volume_water_t)
+            self.moistures.append(moisture_t)
+            self.shade.append(shade_t)
+            self.active.append(active_t)
 
-        return volume_water, moistures, shade, active
+    def plot_quantity(self, quantity):
+        """
+        Function to plot chosen quantity.
+        """
+
+        if quantity == "Moisture":
+            y = self.moistures
+            y_label = "VWC"
+        if quantity == "Temperatures":
+            y = self.temperatures
+            y_label = "Kelvin"
+        if quantity == "Volume water":
+            y = self.volume_water
+            y_label = "Liters"
+
+        fig, ax = plt.subplots()
+
+        x_ticks = np.arange(0, max(timesteps) + 1, 60 * 24)
+        x_labels = [str(i // (60 * 24) + 1) for i in x_ticks]
+        ax.set_xticks(x_ticks)
+        ax.set_xticklabels(x_labels)
+
+        ax.set_ylabel(y_label)
+        ax.set_xlabel("Days")
+
+        plt.plot(timesteps, y)
+
+        if quantity == "Moisture":
+            plt.axhline(y=moisture_min, color='red', linestyle='--')
+            plt.axhline(y=moisture_max, color='red', linestyle='--')
+
+        # colors = np.array(['red' if not act else 'green' for act in active])
+        # ax.bar(timesteps, [100]*len(timesteps), color=colors, alpha=0.5)
+        # plt.savefig('test.png', dpi=100)
+        plt.show()
 
 
 if __name__ == '__main__':
@@ -226,10 +240,4 @@ if __name__ == '__main__':
 
     SIS.activate()
 
-    plot_quantity(timesteps,
-                  moistures,
-                  "VWC",
-                  moisture_min,
-                  moisture_max,
-                  shade,
-                  active)
+    SIS.plot_quantity("Moisture")
