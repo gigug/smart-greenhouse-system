@@ -9,34 +9,35 @@ class SIS:
         self.K_0 = 273.15  # [K]
 
         self.ALPHA_1 = 2.0e-05  # [m^3]
-        self.ALPHA_2 = 1.0e-07  # [m^3/K]
+        self.ALPHA_2 = 1.0e-06  # [m^3/K]
 
-        self.HEIGHT = 3  # [m]
-        self.SIDE = 5  # [m]
+        self.HEIGHT = 3.  # [m]
+        self.SIDE = 10.  # [m]
         self.AREA = self.SIDE ** 2  # [m^2]
         self.V_ROOM = self.AREA * self.HEIGHT  # [m^3]
+        self.THICKNESS = 0.03  # [m]
 
-        self.DEPTH = 0.5  # [m]
+        self.DEPTH = 0.2  # [m]
         self.Vs = self.AREA * self.DEPTH  # [m^3]
 
         self.RHO_A = 1.204  # [kg/m^3]
-        self.LAMBDA_G = 1  # [W/(mK)] specific heat glass
+        self.LAMBDA_G = 0.27  # [W/(mK)] thermal conductivity glass
         self.AREA_G = 4 * self.HEIGHT * self.SIDE + self.AREA  # [m^2] area glass
         self.Cp_A = 1000  # [J/(kgK)] specific heat air
         self.SIGMA = 5.67e-08  # [W/(m^2K^4)]
         self.EPSILON = 0.9  # [dimensionless]
-        self.C_W = 4187  # [J/Kg]
+        self.C_W = 4.196  # [J/(KgK)]
         self.K = 1.08  # [dimensionless]
-        self.BETA = self.V_ROOM * self.RHO_A * self.Cp_A  # [K/J]
+        self.BETA = self.V_ROOM * self.RHO_A * self.Cp_A  # [J/K]
 
-        self.PERIOD = 60 * 60  # [s]
+        self.PERIOD = 60 * 60 * 24  # [s]
 
         self.M_target = 70  # [dimensionless]
         self.V_target = (self.Vs * self.M_target) / (100 - self.M_target)  # [m^3]
         self.T_target = self.K_0 + 20  # [K]
 
         self.T_e_0 = self.K_0 + 30  # [K]
-        self.T_w_0 = self.K_0 + 10  # [K]
+        self.T_w_0 = self.K_0 + 5  # [K]
         self.T_0 = self.K_0 + 10  # [K]
         self.V_w_0 = self.Vs / 5  # [m^3]
 
@@ -51,8 +52,8 @@ class SIS:
         self.min_oscillation_T = 0.1
         self.min_oscillation_M = 1
 
-        self.min_P = -100
-        self.max_P = 100
+        self.min_P = -1.0e05
+        self.max_P = 1.0e05
         self.min_F = 0  # [m^3]
         self.max_F = 0.01  # [m^3]
 
@@ -60,6 +61,16 @@ class SIS:
         self.V_history = np.zeros(self.PERIOD)
         self.T_history = np.zeros(self.PERIOD)
         self.M_history = np.zeros(self.PERIOD)
+
+        self.V_target_history = np.zeros(self.PERIOD)
+        self.T_target_history = np.zeros(self.PERIOD)
+        self.M_target_history = np.zeros(self.PERIOD)
+
+        self.conduction_history = np.empty(self.PERIOD)
+        self.water_conduction_history = np.zeros(self.PERIOD)
+        self.radiation_history = np.zeros(self.PERIOD)
+        self.air_conditioner_history = np.zeros(self.PERIOD)
+        self.t = 0
 
         self.rise_time = None
         self.overshoot = None
@@ -73,6 +84,10 @@ class SIS:
 
     def run(self):
         for t in range(self.PERIOD):
+            self.V_target_history[t] = self.V_target
+            self.T_target_history[t] = self.T_target
+            self.M_target_history[t] = self.M_target
+
             V = self.get_V()
             T = self.get_T()
 
@@ -110,7 +125,18 @@ class SIS:
     def step_T(self, x, u):
         V, T = x
         F, P = u
-        return (1 / self.BETA) * (self.conduction(T) + self.water_conduction(V, T) + self.air_conditioner(P, T))
+        conduction = (1 / self.BETA) * self.conduction(T)
+        water_conduction = (1 / self.BETA) * self.water_conduction(V, T)
+        radiation = (1 / self.BETA) * self.radiation(T)
+        air_conditioner = (1 / self.BETA) * self.air_conditioner(P, T)
+
+        self.conduction_history[self.t] = conduction
+        self.water_conduction_history[self.t] = water_conduction
+        self.radiation_history[self.t] = radiation
+        self.air_conditioner_history[self.t] = air_conditioner
+        self.t += 1
+
+        return air_conditioner + conduction + water_conduction + radiation
 
     def ODE(self, x, u):
         """
@@ -128,7 +154,7 @@ class SIS:
         dVdt, dTdt = self.ODE(x, u)
 
         self.update_V(dVdt)
-        #self.update_T(dTdt)
+        self.update_T(dTdt)
         self.update_M()
 
         self.V_history[t] = self.V
@@ -141,16 +167,18 @@ class SIS:
         return F
 
     def conduction(self, T):
-        return self.LAMBDA_G * self.AREA_G * (self.T_e - T)
+        return 1/self.THICKNESS * self.LAMBDA_G * self.AREA_G * (self.T_e - T)
 
     def radiation(self, T):
-        return self.SIGMA * self.EPSILON * (self.T_e ** 4 - T ** 4)
+        term_e = (self.SIGMA**(-4) + self.EPSILON**(-4) * self.T_e)**4
+        term_i = (self.SIGMA**(-4) + self.EPSILON**(-4) * T) ** 4
+        return term_e - term_i
 
     def water_conduction(self, V, T):
         return self.C_W * V * (self.T_w - T)
 
     def air_conditioner(self, P, T):
-        return self.K * P * (self.T_target - T)
+        return  P * self.K * (self.T_target) #- T)
 
     def evapotranspiration(self, T):
         return -(self.ALPHA_1 + self.ALPHA_2 * T)
@@ -237,20 +265,24 @@ class SIS:
         if variable == "M":
             y = self.M_history
             y_label = "VWC"
-            plt.axhline(y=self.M_target, color='red', linestyle='--')
+            plt.plot(self.M_target_history, color='red', linestyle='--')
         if variable == "T":
             y = self.T_history
             y_label = "K"
-            plt.axhline(y=self.T_target, color='red', linestyle='--')
+            plt.plot(self.T_target_history, color='red', linestyle='--')
+            #plt.plot(np.cumsum(self.conduction_history), label="Conduction")
+            #plt.plot(np.cumsum(self.radiation_history), label="Radiation")
+            #plt.plot(np.cumsum(self.water_conduction_history), label="Water conduction")
+            #plt.plot(np.cumsum(self.air_conditioner_history), label="Air conditioner")
+            #plt.legend()
         if variable == "V":
             y = self.V_history
             y_label = "$m^3$"
-            plt.axhline(y=self.V_target, color='red', linestyle='--')
+            plt.plot(self.V_target_history, color='red', linestyle='--')
 
         ax.set_ylabel(y_label)
         ax.set_xlabel("Seconds")
 
         plt.plot(self.timesteps, y)
-
         plt.show()
 

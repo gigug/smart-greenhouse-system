@@ -1,8 +1,5 @@
 import pdb
 
-import numpy as np
-
-
 class PID:
 
     def __init__(self, flag):
@@ -13,19 +10,30 @@ class PID:
 
         self.e_previous = 0
         self.e_integral = 0
+        self.e_derivative = 0
 
     def reset(self, flag):
         if flag == "V":
-            self.KP = 1.2
-            self.TI = 1.1
+            self.KP = 2
+            self.TI = None
+            self.TD = None
         if flag == "T":
-            self.KP = 1.2
-            self.TI = 1.1
+            self.KP = 1.0e04
+            self.TI = 200
+            self.TD = None
 
     def control(self, target, current):
         e = target - current
-        e_derivative = e - self.e_previous
+        self.e_derivative = e - self.e_previous
         self.e_previous = e
         self.e_integral += e
-        u = self.KP * (e + 1 / self.TI * self.e_integral + self.TD * e_derivative)
+
+        P = self.KP * e
+        I = 0
+        D = 0
+        if self.TI is not None:
+            I = self.KP * 1 / self.TI * self.e_integral
+        if self.TD is not None:
+            D = self.KP * self.TD * self.e_derivative
+        u = P + I + D
         return u
