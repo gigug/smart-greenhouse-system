@@ -41,14 +41,6 @@ def simulate_temperature(timesteps):
     return temperatures
 
 
-def simulate_timesteps(t_start, t_end):
-    """
-    Function to simulate timesteps over a given time interval.
-    """
-    timesteps = np.arange(t_start, t_end)
-    return timesteps
-
-
 def temperature(t):
     """
     Function to simulate temperature as a function of time.
@@ -59,6 +51,14 @@ def temperature(t):
     T_4 = np.random.normal(0, 1)
     T = T_1 + T_2 + T_3 + T_4
     return T
+
+
+def simulate_timesteps(t_start, t_end):
+    """
+    Function to simulate timesteps over a given time interval.
+    """
+    timesteps = np.arange(t_start, t_end)
+    return timesteps
 
 
 def simulate_rain(timesteps):
