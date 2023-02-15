@@ -44,7 +44,7 @@ class SIS:
         self.HORIZON = 3
         self.WEIGHT = 1
 
-        self.DAYS = 2
+        self.DAYS = 1
         self.PERIOD = self.DAY * self.DAYS  # [s]
 
         self.simulate_M_target(self.DAYS)  # [dimensionless]
@@ -249,14 +249,13 @@ class SIS:
         Checking divergence from bounds.
         """
         robustness = np.infty
+        temp = 0
         for t in range(len(history)):
             if history[t] - lower_bound[t] < robustness:
                 robustness = history[t] - lower_bound[t]
+                temp = self.T_e_history[t]
             if upper_bound[t] - history[t] < robustness:
                 robustness = upper_bound[t] - history[t]
-
-        print(robustness)
-
 
     def print_measures(self, variable):
         print(f'Performance measures of {variable}:')
@@ -301,48 +300,63 @@ class SIS:
         Function to plot chosen quantity.
         """
 
+        hours_timesteps = np.array(self.timesteps)/3600
+
         if variable == "M":
-            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 10))
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 10))
 
             # Subplot for M
-            ax1.plot(self.timesteps, self.M_history)
-            ax1.plot(self.timesteps, self.M_target_history, color='orange', linestyle='--')
-            ax1.plot(self.timesteps, self.M_lower_bound_history, color='red', linestyle='--')
-            ax1.plot(self.timesteps, self.M_upper_bound_history, color='red', linestyle='--')
+            ax1.plot(hours_timesteps, self.M_history)
+            ax1.plot(hours_timesteps, self.M_target_history, color='orange', linestyle='--')
+            ax1.plot(hours_timesteps, self.M_lower_bound_history, color='red', linestyle='--')
+            ax1.plot(hours_timesteps, self.M_upper_bound_history, color='red', linestyle='--')
+
+            ax1.set_xticklabels([f'{i:.0f}' for i in ax1.get_xticks()])
+
             ax1.set_ylabel('VWC')
             ax1.set_xlabel('Seconds')
             ax1.set_title('Moisture')
 
             # Subplot for M
-            ax2.plot(self.timesteps, self.F_history)
+            ax2.plot(hours_timesteps, self.F_history)
             ax2.set_ylabel('$m^3$')
             ax2.set_xlabel('Seconds')
             ax2.set_title('Flux')
 
+            ax2.set_xticklabels([f'{i:.0f}' for i in ax2.get_xticks()])
+
         if variable == "T":
-            fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(8, 10))
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 10))
             # Subplot for T
-            ax1.plot(self.timesteps, self.T_history)
-            ax1.plot(self.timesteps, self.T_target_history, color='orange', linestyle='--')
-            ax1.plot(self.timesteps, self.T_lower_bound_history, color='red', linestyle='--')
-            ax1.plot(self.timesteps, self.T_upper_bound_history, color='red', linestyle='--')
+            ax1.plot(hours_timesteps, self.T_history)
+            ax1.plot(hours_timesteps, self.T_target_history, color='orange', linestyle='--')
+            ax1.plot(hours_timesteps, self.T_lower_bound_history, color='red', linestyle='--')
+            ax1.plot(hours_timesteps, self.T_upper_bound_history, color='red', linestyle='--')
+
             ax1.set_ylabel('K')
-            ax1.set_xlabel('Seconds')
+            ax1.set_xlabel('Hours')
             ax1.set_title('Temperature')
 
+            ax1.set_xticklabels([f'{i:.0f}' for i in ax1.get_xticks()])
+
             # Subplot for P
-            ax2.plot(self.timesteps, self.P_history)
+            ax2.plot(hours_timesteps, self.P_history)
+
             ax2.set_ylabel('W/K')
-            ax2.set_xlabel('Seconds')
+            ax2.set_xlabel('Hours')
             ax2.set_title('Power')
 
+            ax2.set_xticklabels([f'{i:.0f}' for i in ax2.get_xticks()])
+
+
+            '''
             # Subplot for T_e
             ax3.plot(self.timesteps, self.T_e_history)
             ax3.set_ylabel('K')
             ax3.set_xlabel('Seconds')
             ax3.set_title('Temperature external')
+            '''
 
-        plt.tight_layout()
         plt.show()
 
     def simulate_temperature(self):
