@@ -38,8 +38,9 @@ class SIS:
         self.BETA = self.V_ROOM * self.RHO_A * self.Cp_A  # [J/K]
 
         self.VARIANCE = 5
+        self.SHIFT = 4
         self.DAY = 60*60*24
-        self.T_BAR = self.K_0 - 15
+        self.T_BAR = self.K_0 - 20
 
         self.HORIZON = 3
         self.WEIGHT = 1
@@ -53,9 +54,9 @@ class SIS:
 
         self.T_w = self.K_0 + 5  # [K]
         self.T_0 = self.T_target_history[0]  # [K]
-        self.V_w_0 = self.V_from_M(self.M_target_history[0])  # [m^3]
+        self.V_0 = self.V_from_M(60)  # [m^3]
 
-        self.V = self.V_w_0
+        self.V = self.V_0
         self.T = self.T_0
         self.M = 0
         self.update_M()
@@ -72,6 +73,11 @@ class SIS:
         self.T_e_history = self.simulate_temperature()
         self.F_history = np.zeros(self.PERIOD)
         self.P_history = np.zeros(self.PERIOD)
+
+        self.o_M_biggest = 0
+        self.o_T_biggest = 0
+        self.o_P_biggest = 0
+        self.o_F_biggest = 0
 
         self.rise_time = None
         self.overshoot = None
@@ -94,6 +100,7 @@ class SIS:
 
             V = self.get_V()
             T = self.get_T()
+            M = self.get_M()
 
             u_F, u_P = self.control_PID(V, T, t)
 
@@ -112,8 +119,8 @@ class SIS:
         u_F = self.PID_V.control(self.V_target, V)
         u_P = self.PID_T.control(self.T_target, T)
 
-        u_F = self.check_F(u_F)
-        u_P = self.check_P(u_P)
+        u_F = self.check_F(u_F, t)
+        u_P = self.check_P(u_P, t)
 
         self.P_history[t] = u_P
         self.F_history[t] = u_F
@@ -125,6 +132,9 @@ class SIS:
 
     def get_V(self):
         return self.V
+
+    def get_M(self):
+        return self.M
 
     def update_M(self):
         self.M = self.V / (self.V + self.Vs) * 100
@@ -204,21 +214,36 @@ class SIS:
     def evapotranspiration(self, T):
         return -(self.ALPHA_1 + self.ALPHA_2 * T)
 
-    def check_F(self, u_F):
-        if u_F > self.max_F:
-            return self.max_F
-        elif u_F < self.min_F:
-            return self.min_F
-        else:
-            return u_F
+    def check_F(self, u_F, t):
+        u_F_previous = self.F_history[t - 1] if t > 0 else 0
 
-    def check_P(self, u_P):
+        if u_F > self.max_F:
+            u_F = self.max_F
+        elif u_F < self.min_F:
+            u_F = self.min_F
+
+        if abs(u_F - u_F_previous) > self.o_F_biggest:
+            self.o_F_biggest = abs(u_F - u_F_previous)
+
+        return u_F
+
+    def check_P(self, u_P, t):
+        u_P_previous = self.P_history[t-1] if t > 0 else 0
+
         if u_P > self.max_P:
-            return self.max_P
+            u_P = self.max_P
         elif u_P < self.min_P:
-            return self.min_P
-        else:
-            return u_P
+            u_P = self.min_P
+
+        if u_P - u_P_previous > 100:
+            u_P = u_P_previous + 100
+        if u_P_previous - u_P > 100:
+            u_P = u_P_previous - 100
+
+        if abs(u_P - u_P_previous) > self.o_P_biggest:
+            self.o_P_biggest = abs(u_P - u_P_previous)
+
+        return u_P
 
     def measures(self, variable):
         if variable == "T":
@@ -237,6 +262,8 @@ class SIS:
             lower_bound = self.V_lower_bound_history
             upper_bound = self.V_upper_bound_history
 
+        print(f"Biggest o(t), F: {self.o_F_biggest}")
+        print(f"Biggest o(t), P: {self.o_P_biggest}")
         self.robustness(history, lower_bound, upper_bound)
 
         #self.get_rise_time(history, target)
@@ -307,20 +334,20 @@ class SIS:
 
             # Subplot for M
             ax1.plot(hours_timesteps, self.M_history)
-            ax1.plot(hours_timesteps, self.M_target_history, color='orange', linestyle='--')
-            ax1.plot(hours_timesteps, self.M_lower_bound_history, color='red', linestyle='--')
-            ax1.plot(hours_timesteps, self.M_upper_bound_history, color='red', linestyle='--')
+            ax1.plot(hours_timesteps[6*60*60: 20*60*60], self.M_target_history[6*60*60: 20*60*60], color='orange', linestyle='--')
+            ax1.plot(hours_timesteps[6*60*60: 20*60*60], self.M_lower_bound_history[6*60*60: 20*60*60], color='red', linestyle='--')
+            ax1.plot(hours_timesteps[6*60*60: 20*60*60], self.M_upper_bound_history[6*60*60: 20*60*60], color='red', linestyle='--')
 
             ax1.set_xticklabels([f'{i:.0f}' for i in ax1.get_xticks()])
 
             ax1.set_ylabel('VWC')
-            ax1.set_xlabel('Seconds')
+            ax1.set_xlabel('Hours')
             ax1.set_title('Moisture')
 
             # Subplot for M
             ax2.plot(hours_timesteps, self.F_history)
             ax2.set_ylabel('$m^3$')
-            ax2.set_xlabel('Seconds')
+            ax2.set_xlabel('Hours')
             ax2.set_title('Flux')
 
             ax2.set_xticklabels([f'{i:.0f}' for i in ax2.get_xticks()])
@@ -332,6 +359,7 @@ class SIS:
             ax1.plot(hours_timesteps, self.T_target_history, color='orange', linestyle='--')
             ax1.plot(hours_timesteps, self.T_lower_bound_history, color='red', linestyle='--')
             ax1.plot(hours_timesteps, self.T_upper_bound_history, color='red', linestyle='--')
+            ax1.set_ylim([self.K_0 - 20, self.K_0 + 30])
 
             ax1.set_ylabel('K')
             ax1.set_xlabel('Hours')
@@ -371,7 +399,7 @@ class SIS:
         """
         Function to simulate temperature as a function of time.
         """
-        T_1 = self.VARIANCE * np.sin(2 * np.pi * t / self.DAY)
+        T_1 = self.VARIANCE * np.sin(2 * np.pi * t / self.DAY + self.SHIFT)
         T_2 = self.T_BAR
         if t % 60 == 0:
             self.T_3 = np.random.normal(0, 1)
@@ -465,29 +493,33 @@ class SIS:
         self.T_target_history = None
         self.T_lower_bound_history = None
         self.T_upper_bound_history = None
+
+        T_DAY = self.K_0 + 20
+        T_NIGHT = self.K_0 + 20
+
         for DAY in range(DAYS):
             # T
-            T_0_4 = [self.K_0 + 15] * 60*60*4
-            T_4_20 = [self.K_0 + 20] * 60*60*16
-            T_20_0 = [self.K_0 + 15] * 60*60*4
+            T_0_4 = [T_NIGHT] * 60*60*4
+            T_4_20 = [T_DAY] * 60*60*16
+            T_20_0 = [T_NIGHT] * 60*60*4
             if self.T_target_history is None:
                 self.T_target_history = T_0_4 + T_4_20 + T_20_0
             else:
                 self.T_target_history += T_0_4 + T_4_20 + T_20_0
 
             # Upper bound
-            T_0_6 = [self.K_0 + 15 - self.T_ERROR] * 60 * 60 * 6
-            T_6_20 = [self.K_0 + 20 - self.T_ERROR] * 60 * 60 * 14
-            T_20_0 = [self.K_0 + 15 - self.T_ERROR] * 60 * 60 * 4
+            T_0_6 = [T_NIGHT - self.T_ERROR] * 60 * 60 * 6
+            T_6_20 = [T_DAY - self.T_ERROR] * 60 * 60 * 14
+            T_20_0 = [T_NIGHT - self.T_ERROR] * 60 * 60 * 4
             if self.T_lower_bound_history is None:
                 self.T_lower_bound_history = T_0_6 + T_6_20 + T_20_0
             else:
                 self.T_lower_bound_history += T_0_6 + T_6_20 + T_20_0
 
             # Lower bound
-            T_0_4 = [self.K_0 + 15 + self.T_ERROR] * 60 * 60 * 4
-            T_4_22 = [self.K_0 + 20 + self.T_ERROR] * 60 * 60 * 18
-            T_22_0 = [self.K_0 + 15 + self.T_ERROR] * 60 * 60 * 2
+            T_0_4 = [T_NIGHT + self.T_ERROR] * 60 * 60 * 4
+            T_4_22 = [T_DAY + self.T_ERROR] * 60 * 60 * 18
+            T_22_0 = [T_NIGHT + self.T_ERROR] * 60 * 60 * 2
             if self.T_upper_bound_history is None:
                 self.T_upper_bound_history = T_0_4 + T_4_22 + T_22_0
             else:

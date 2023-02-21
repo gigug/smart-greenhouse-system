@@ -20,8 +20,8 @@ class PID:
             self.TI = None
             self.TD = None
         if flag == "T":
-            self.KP = 300
-            self.TI = 100
+            self.KP = 50
+            self.TI = 1
             self.TD = None
 
     def reset(self):
