@@ -1,7 +1,7 @@
-from src.SIS import SIS
+from src.SGS import SGS
 
 if __name__ == "__main__":
-    sis = SIS()
-    sis.run()
-    #sis.plot_variable("T")
-    sis.plot_variable("M")
+    sgs = SGS()
+    sgs.run()
+    sgs.plot_variable("T")
+    sgs.plot_variable("M")

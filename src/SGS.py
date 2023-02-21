@@ -7,7 +7,7 @@ import pdb
 
 from src.PID import PID
 
-class SIS:
+class SGS:
     def __init__(self):
         self.K_0 = 273.15  # [K]
 
