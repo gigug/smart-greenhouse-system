@@ -14,3 +14,4 @@ such as the dimensions of the greenhouse, the quantity of soil, the external tem
 - `monitor.py`: implements the scripts passed to moonlight for requirements checking.
 - `falsification.py`: runs a falsification routine on desired intervals of values.
 
+Note: `moonlight.py` and its `jar` folder are already in the repository. If they should not work, try deleting them and substituting them with your own.
