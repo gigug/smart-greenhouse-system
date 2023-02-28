@@ -16,6 +16,15 @@ def write_results(filename, phi_1, phi_2, phi_3, phi_4, phi_5):
                     "phi_4": phi_4[0][1],
                     "phi_5": phi_5[0][1]}
 
+    not_passed = 0
+    print('T_BAR = 278.15 K, A_T = 5')
+    for k, v in results_dict.items():
+        print(f"Requirement {k}: {v}")
+        if v < 0:
+            not_passed += 1
+    if not_passed == 0:
+        print("All requirements respected.")
+
     with open('robustness/results_' + filename + '.pickle', 'wb') as f:
         pickle.dump(results_dict, f)
 

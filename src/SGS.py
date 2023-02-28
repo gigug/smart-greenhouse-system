@@ -52,7 +52,7 @@ class SGS:
         self.SHIFT = 4
         self.HOUR = 60 * 60
         self.DAY = self.HOUR * 24
-        self.T_BAR = self.K_0 + 5 if T_BAR is None else T_BAR
+        self.T_BAR = self.K_0 - 20 if T_BAR is None else T_BAR
         self.AMPLITUDE = 5 if AMPLITUDE is None else AMPLITUDE
 
         self.T_TARGET = self.K_0 + 20

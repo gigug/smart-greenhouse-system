@@ -8,11 +8,11 @@ if __name__ == "__main__":
     sgs.run()
 
     # plot variables
-    sgs.plot_variable("T")
-    sgs.plot_variable("M")
+    #sgs.plot_variable("T")
+    #sgs.plot_variable("M")
 
     # check requirements
-    #sgs.check_requirements()
+    sgs.check_requirements()
     #results = sgs.load_requirements_results()
     #print(f"Robustness results: {results}")
 
